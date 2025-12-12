@@ -1,0 +1,1026 @@
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Vendas de Picolés e Estoque (Versão Compartilhável)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 480px;
+            width: 100%;
+            background-color: white;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            border-radius: 20px;
+            overflow: hidden;
+        }
+        .section-header {
+            background-color: #2563eb;
+            color: white;
+            padding: 1.5rem 1rem;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+            font-weight: 700;
+        }
+        .stat-card {
+            background-color: #f0f9ff;
+            border-left: 5px solid #3b82f6;
+            transition: transform 0.1s ease-in-out;
+        }
+        .stat-card.deposit { border-left-color: #10b981; }
+        .stat-card.pix { border-left-color: #3b82f6; }
+        .stat-card.cash { border-left-color: #f59e0b; }
+        .stat-card.commission { border-left-color: #ef4444; }
+
+        /* Custom modal styles */
+        .modal {
+            background-color: rgba(0, 0, 0, 0.7);
+        }
+        .modal-content {
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .stock-level {
+            font-size: 0.75rem;
+        }
+        
+        .product-btn-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.15s ease;
+        }
+        .product-btn-group:hover {
+            background-color: #f0f4f8;
+        }
+        /* Responsiveness for small screens */
+        @media (max-width: 480px) {
+            .container {
+                border-radius: 0;
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header class="section-header bg-gradient-to-r from-pink-500 to-red-600 shadow-xl">
+        <h1 class="text-3xl font-extrabold flex items-center justify-center">
+            🍦 Vendas & Estoque
+        </h1>
+        <p class="text-sm mt-1 opacity-90">Controle de Inventário e Fechamento de Caixa</p>
+    </header>
+
+    <!-- Display Section (Resumo do Caixa) -->
+    <div class="p-4 space-y-4">
+        
+        <div class="text-xs text-gray-500 text-center p-2 bg-gray-100 rounded-lg">
+            ID de Sessão (Usuário): <span id="userIdDisplay" class="font-mono text-gray-700 break-all">Carregando...</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+            <div id="caixaAtualCard" class="stat-card cash p-4 rounded-lg">
+                <p class="text-sm font-medium text-gray-500">Caixa Dinheiro (Total)</p>
+                <p id="caixaAtualValue" class="text-2xl font-bold text-yellow-600 mt-1">R$ 0,00</p>
+            </div>
+            <div id="vendasPixCard" class="stat-card pix p-4 rounded-lg">
+                <p class="text-sm font-medium text-gray-500">Vendas Pix Acumuladas</p>
+                <p id="vendasPixValue" class="text-2xl font-bold text-blue-700 mt-1">R$ 0,00</p>
+            </div>
+            <div id="comissaoCard" class="stat-card commission p-4 rounded-lg">
+                <p class="text-sm font-medium text-gray-500">Sua Comissão Acumulada</p>
+                <p id="comissaoValue" class="text-2xl font-bold text-red-600 mt-1">R$ 0,00</p>
+            </div>
+            <div id="depositoCard" class="stat-card deposit p-4 rounded-lg">
+                <p class="text-sm font-medium text-gray-500">Valor para Depósito (Líquido)</p>
+                <p id="depositoValue" class="text-2xl font-bold text-green-600 mt-1">R$ 0,00</p>
+            </div>
+        </div>
+        
+        <div class="text-xs text-gray-600 border-t pt-2 mt-2">
+            <span class="font-bold">Detalhes do Dinheiro:</span> 
+            Troco Inicial: <span id="trocoInicialDetail" class="font-mono text-pink-600">R$ 0,00</span> | 
+            Vendas Dinheiro: <span id="vendasDinheiroDetail" class="font-mono text-yellow-600">R$ 0,00</span>
+        </div>
+    </div>
+
+    <!-- Inventory / Stock Display Section -->
+    <div class="p-4 border-t border-gray-100 bg-gray-50">
+        <h2 class="text-xl font-semibold text-gray-700 mb-3 flex items-center">
+            Estoque Atual (Unidades) 📦
+        </h2>
+        <div id="inventoryStockContainer" class="grid grid-cols-2 gap-3">
+            <!-- Stock levels will be rendered here -->
+            <p class="col-span-2 text-center text-gray-400">Carregando estoque...</p>
+        </div>
+    </div>
+
+
+    <!-- Product Button Input and Cart Display -->
+    <div class="p-4 border-t border-gray-100">
+        
+        <!-- New Cart Display -->
+        <div id="currentCartDisplay" class="mb-6 p-4 border border-gray-300 rounded-xl bg-gray-50 shadow-inner">
+            <h3 class="text-xl font-bold text-gray-700 mb-3 flex justify-between items-baseline">
+                Carrinho de Vendas
+                <span class="text-base font-bold text-gray-500 flex items-baseline">
+                    <span id="cartTotalItems" class="text-3xl font-extrabold text-pink-600 mr-1">0</span>
+                    itens
+                </span>
+            </h3>
+            <div id="cartItemsList" class="text-sm space-y-2 border-t pt-2">
+                <p class="text-center text-gray-500 italic">Carrinho vazio.</p>
+            </div>
+            <button onclick="clearCart()" id="clearCartButton" class="w-full mt-4 p-3 text-base font-bold rounded-lg bg-red-500 text-white hover:bg-red-600 shadow-md shadow-red-300 transition duration-150" disabled>
+                <svg class="inline-block w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                Limpar Carrinho
+            </button>
+        </div>
+
+        <h2 class="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+            Adicionar Produto à Venda 🖱️
+        </h2>
+        <div id="productActionButtonContainer" class="grid grid-cols-2 gap-3 mb-6">
+            <!-- Buttons to add product will be rendered here -->
+        </div>
+        
+        <p id="messageBox" class="text-sm text-center text-red-500 mt-4 h-5"></p>
+
+        <button onclick="showCheckoutModal()" id="checkoutButton" class="w-full p-4 text-white font-extrabold text-lg rounded-xl bg-pink-500 hover:bg-pink-600 shadow-lg shadow-pink-300 transition duration-150" disabled>
+            Finalizar Venda
+        </button>
+    </div>
+
+    <!-- Sales Summary by Product (Current Day) -->
+    <div class="p-4 border-t border-gray-100">
+        <h2 class="text-xl font-semibold text-gray-700 mb-4 flex items-center">
+            Resumo de Vendas por Produto (Dia Atual) 📊
+        </h2>
+        <div id="currentDayProductSummary" class="space-y-2 text-sm">
+            <p class="text-center text-gray-500 italic">Nenhuma venda registrada hoje.</p>
+        </div>
+        
+        <!-- NEW BUTTON: Detailed History -->
+        <button onclick="showDetailedHistoryModal()" class="w-full p-3 mt-4 text-white font-semibold rounded-lg bg-yellow-600 hover:bg-yellow-700 shadow-md shadow-yellow-300 transition duration-150">
+            <svg class="inline-block w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2v2M7 7h10"></path></svg>
+            Ver Histórico de Transações do Dia
+        </button>
+    </div>
+
+
+    <!-- Settings Section (Troco Inicial & Reset) -->
+    <div class="p-4 border-t border-gray-100 bg-gray-100">
+        <h2 class="text-xl font-semibold text-gray-700 mb-3 flex items-center">
+            Configurações e Arquivamento
+        </h2>
+        <div class="space-y-3">
+            <!-- Troco Inicial Setting -->
+            <div>
+                <label for="trocoInicialSetting" class="block text-sm font-medium text-gray-700">Troco Inicial do Caixa (R$)</label>
+                <div class="flex mt-1">
+                    <input type="number" id="trocoInicialSetting" placeholder="0.00" min="0" step="0.01" class="w-full p-3 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-red-500 focus:border-red-500">
+                    <button onclick="salvarTrocoInicial()" class="p-3 bg-pink-500 text-white font-semibold rounded-r-lg hover:bg-pink-600 flex-shrink-0">Salvar</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 pt-2">
+                <!-- Botão de Fechamento de Dia (Arquivamento) -->
+                <button onclick="showModal('confirmArchiveModal')" class="w-full p-3 text-white font-semibold rounded-lg bg-green-600 hover:bg-green-700 shadow-md shadow-green-300">
+                    <svg class="inline-block w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    Fechar o Dia (Arquivar)
+                </button>
+
+                <!-- Botão de Histórico de Arquivos Anteriores -->
+                <button onclick="fetchAndShowArchives()" class="w-full p-3 text-white font-semibold rounded-lg bg-indigo-500 hover:bg-indigo-600 shadow-md shadow-indigo-200">
+                    <svg class="inline-block w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    Histórico Arquivado
+                </button>
+            </div>
+            
+            <!-- Botão para carregar ou ajustar o Estoque Inicial -->
+            <button onclick="showModal('setInitialStockModal')" class="w-full p-3 text-white font-semibold rounded-lg bg-blue-500 hover:bg-blue-600 shadow-md shadow-blue-200">
+                <svg class="inline-block w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                Ajustar/Carregar Estoque Inicial
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Ajustar/Carregar Estoque Inicial -->
+<div id="setInitialStockModal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full modal-content">
+        <h3 class="text-xl font-bold text-blue-700 mb-4">Estoque Inicial / Ajuste</h3>
+        <p class="text-gray-700 mb-4 text-sm">Insira o estoque inicial ou ajuste as quantidades atuais. Estas quantidades serão salvas no sistema.</p>
+        <div id="initialStockInputs" class="space-y-3 mb-6">
+            <!-- Inputs for setting initial stock -->
+        </div>
+        <div class="flex justify-end space-x-3">
+            <button onclick="hideModal('setInitialStockModal')" class="px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">
+                Cancelar
+            </button>
+            <button onclick="saveInitialStock()" class="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">
+                Salvar Estoque
+            </button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Custom Confirmation Modal for Archive (Fechamento) -->
+<div id="confirmArchiveModal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
+        <h3 class="text-xl font-bold text-green-700 mb-4">Fechamento do Dia</h3>
+        <p class="text-gray-700 mb-6">Isso **arquivará o relatório de vendas do dia atual** e **zerará as vendas e o estoque** no sistema (mantendo o Troco Inicial). Deseja confirmar o fechamento?</p>
+        <div class="flex justify-end space-x-3">
+            <button onclick="hideModal('confirmArchiveModal')" class="px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">
+                Cancelar
+            </button>
+            <button onclick="closeDayAndArchive()" class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700">
+                Sim, Fechar e Arquivar
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Archives History (Histórico) -->
+<div id="historyModal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full modal-content">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-2xl font-bold text-indigo-700">Histórico de Fechamentos Arquivados</h3>
+            <button onclick="hideModal('historyModal')" class="text-gray-500 hover:text-gray-700">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div id="archivesList" class="space-y-6">
+            <p class="text-center text-gray-500">Carregando arquivos...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Detailed Transaction History (Histórico de Transações do Dia) -->
+<div id="detailedHistoryModal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-6 rounded-xl shadow-2xl max-w-lg w-full modal-content">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-2xl font-bold text-yellow-700">Histórico de Transações do Dia</h3>
+            <button onclick="hideModal('detailedHistoryModal')" class="text-gray-500 hover:text-gray-700">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <div id="transactionsList" class="space-y-4">
+            <p class="text-center text-gray-500">Nenhuma transação registrada hoje.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Payment Type Selection (Checkout) -->
+<div id="checkoutModal" class="modal fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full">
+        <h3 class="text-xl font-bold text-gray-800 mb-2">Checkout</h3>
+        <p class="text-3xl font-extrabold text-pink-600 mb-4">Total: <span id="checkoutModalTotal">R$ 0,00</span></p>
+
+        <p class="text-gray-700 mb-6">Selecione o método de pagamento:</p>
+        
+        <div class="flex justify-between space-x-3">
+            <button onclick="finalizeSale('dinheiro')" class="w-1/2 p-3 text-white font-semibold rounded-lg bg-green-500 shadow-md shadow-green-200 hover:bg-green-600">
+                <svg class="inline-block w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                Dinheiro
+            </button>
+            <button onclick="finalizeSale('pix')" class="w-1/2 p-3 text-white font-semibold rounded-lg bg-blue-500 shadow-md shadow-blue-200 hover:bg-blue-600">
+                <svg class="inline-block w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c1.657 0 3 .895 3 2s-1.343 2-3 2h-1c-1.657 0-3 .895-3 2s1.343 2 3 2h1a2 2 0 100-4h-3a2 2 0 01-2-2v-4a2 2 0 012-2h10a2 2 0 012 2v4a2 2 0 01-2 2H6z"></path></svg>
+                Pix
+            </button>
+        </div>
+        <button onclick="hideModal('checkoutModal')" class="w-full mt-4 text-sm text-gray-500 hover:text-gray-700">Cancelar</button>
+    </div>
+</div>
+
+
+<script type="module">
+    // --- IMPORTAÇÕES DO FIREBASE (Via CDN) ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"; 
+    import { getFirestore, doc, setDoc, onSnapshot, updateDoc, collection, getDocs, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    
+    setLogLevel('Debug'); 
+
+    // =======================================================================================
+    // === CONFIGURAÇÃO FIREBASE E ID DO APLICATIVO ===
+    
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'picole-vendas-compartilhadas';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        // Usar config padrão em modo de teste local
+        apiKey: "YOUR_API_KEY", 
+        authDomain: "YOUR_AUTH_DOMAIN", 
+        projectId: "YOUR_PROJECT_ID", 
+        storageBucket: "YOUR_STORAGE_BUCKET", 
+        messagingSenderId: "YOUR_MESSAGING_SENDER_ID", 
+        appId: "YOUR_APP_ID"
+    };
+    const authToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null; 
+
+    const IS_LOCAL_TEST_MODE = (typeof __app_id === 'undefined' || (firebaseConfig.apiKey.includes('YOUR_API_KEY')));
+    
+    const COLLECTION_NAME = 'sales_sessions';
+    const ARCHIVE_COLLECTION_NAME = 'sales_archives';
+    
+    // Utilitário para formatar a data como YYYY-MM-DD (para o ID do documento do dia)
+    const getTodayId = () => new Date().toISOString().slice(0, 10);
+    // =======================================================================================
+
+    
+    let db;
+    let auth;
+    let userId = null; 
+    let isAuthReady = false;
+
+    // NOVO: Carrinho em tempo real (quantidades a serem vendidas)
+    let currentCart = {}; 
+
+    // --- Definições de Produto (ATUALIZADAS CONFORME SUA SOLICITAÇÃO) ---
+    const PRODUCTS = [
+        // Paletas Mexicanas: R$23,00 | Comissão: R$6,50
+        { id: 'paleta', name: 'Paleta Mexicana', value: 23.00, commission: 6.50, color: 'border-red-500', icon: '🌶️' },
+        // Skimo: R$18,00 | Comissão: R$5,00
+        { id: 'skimo', name: 'Skimo', value: 18.00, commission: 5.00, color: 'border-blue-500', icon: '🥛' }, 
+        // Picolé de Creme: R$14,00 | Comissão: R$4,00
+        { id: 'creme', name: 'Creme', value: 14.00, commission: 4.00, color: 'border-yellow-500', icon: '🍮' },
+        // Picolé Especial: R$16,00 | Comissão: R$4,50
+        { id: 'especial', name: 'Especiais', value: 16.00, commission: 4.50, color: 'border-indigo-500', icon: '✨' },
+        // Picolé de Fruta: R$12,00 | Comissão: R$3,50
+        { id: 'fruta', name: 'Fruta', value: 12.00, commission: 3.50, color: 'border-green-500', icon: '🥭' },
+        // Açaí removido
+    ];
+    
+    // Valores Padrão para Reset/Inicialização do Estoque (apenas para a primeira carga)
+    const DEFAULT_STOCK = PRODUCTS.reduce((acc, p) => ({ ...acc, [p.id]: 50 }), {});
+
+    // Valores Padrão para Reset/Inicialização do Dia
+    const INITIAL_DAY_DATA = {
+        trocoInicial: 50.00, // Defina um troco inicial padrão
+        vendasDinheiro: 0.00,
+        vendasPix: 0.00,
+        totalCommissionAccrued: 0.00,
+        salesHistory: [], 
+        stock: DEFAULT_STOCK, 
+    };
+
+    let appData = {...INITIAL_DAY_DATA}; // Dados da sessão atual
+
+    // --- Elementos do DOM ---
+    const caixaAtualValue = document.getElementById('caixaAtualValue');
+    const vendasPixValue = document.getElementById('vendasPixValue');
+    const comissaoValue = document.getElementById('comissaoValue');
+    const depositoValue = document.getElementById('depositoValue');
+    const trocoInicialSetting = document.getElementById('trocoInicialSetting');
+    const messageBox = document.getElementById('messageBox');
+    const userIdDisplay = document.getElementById('userIdDisplay');
+    const checkoutButton = document.getElementById('checkoutButton');
+    const checkoutModalTotal = document.getElementById('checkoutModalTotal');
+    const trocoInicialDetail = document.getElementById('trocoInicialDetail');
+    const vendasDinheiroDetail = document.getElementById('vendasDinheiroDetail');
+    const inventoryStockContainer = document.getElementById('inventoryStockContainer');
+    const currentDayProductSummary = document.getElementById('currentDayProductSummary');
+    const archivesList = document.getElementById('archivesList'); 
+    const initialStockInputs = document.getElementById('initialStockInputs');
+    const transactionsList = document.getElementById('transactionsList'); 
+
+    // Carrinho
+    const cartTotalItems = document.getElementById('cartTotalItems');
+    const cartItemsList = document.getElementById('cartItemsList');
+    const productActionButtonContainer = document.getElementById('productActionButtonContainer');
+    const clearCartButton = document.getElementById('clearCartButton');
+
+
+    // --- Funções Utilitárias e de UI ---
+
+    const formatCurrency = (value) => {
+        const numberValue = parseFloat(value) || 0;
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(numberValue);
+    };
+
+    const formatTimestamp = (timestamp) => {
+        return new Date(timestamp).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+    };
+
+    window.showModal = (modalId) => {
+        document.getElementById(modalId).classList.remove('hidden');
+        if (modalId === 'setInitialStockModal') {
+            renderInitialStockInputs();
+        }
+    };
+
+    window.hideModal = (modalId) => {
+        document.getElementById(modalId).classList.add('hidden');
+    };
+
+    const showMessage = (msg, type = 'error') => {
+        messageBox.textContent = msg;
+        messageBox.className = `text-sm text-center mt-4 h-5 font-semibold ${type === 'success' ? 'text-green-600' : 'text-red-500'}`;
+        setTimeout(() => {
+            messageBox.textContent = '';
+        }, 3000);
+    };
+
+    // Adiciona um item ao carrinho (se houver estoque)
+    window.addToCart = (productId) => {
+        const product = PRODUCTS.find(p => p.id === productId);
+        if (!product) return;
+
+        const currentStock = appData.stock[productId] || 0;
+        const currentQty = currentCart[productId] || 0;
+        
+        if (currentQty >= currentStock) {
+            showMessage(`Estoque de ${product.name} (Max: ${currentStock}) atingido!`, 'error');
+            return;
+        }
+
+        currentCart[productId] = currentQty + 1;
+        updateCartUI();
+    };
+
+    // Limpa o carrinho
+    window.clearCart = () => {
+        currentCart = {};
+        updateCartUI();
+        showMessage('Carrinho limpo.', 'success');
+    };
+    
+    // Renderiza os botões de ação (Adicionar)
+    const renderActionButtons = () => {
+        productActionButtonContainer.innerHTML = PRODUCTS.map(p => {
+            const currentStock = appData.stock[p.id] || 0;
+            const currentQty = currentCart[p.id] || 0;
+            const remainingStock = currentStock - currentQty;
+            const isMaxed = remainingStock <= 0;
+            
+            return `
+                <button onclick="addToCart('${p.id}')" 
+                        ${isMaxed ? 'disabled' : ''}
+                        class="p-3 text-sm font-bold rounded-xl text-white 
+                               bg-gradient-to-r from-pink-500 to-red-500 
+                               hover:from-pink-600 hover:to-red-600 
+                               shadow-md shadow-pink-300 transition duration-150 
+                               flex flex-col items-center justify-center relative ${isMaxed ? 'opacity-50 cursor-not-allowed' : ''}">
+                    <span class="text-3xl mb-1">${p.icon}</span>
+                    <span>+1 ${p.name}</span>
+                    <span class="stock-level text-xs font-normal opacity-80 mt-1">Disp: ${remainingStock}</span>
+                </button>
+            `;
+        }).join('');
+    };
+
+    // Atualiza a visualização do carrinho e o estado do botão de checkout
+    const updateCartUI = () => {
+        const { quantities, totalItems, totalRevenue } = getCartQuantities();
+        
+        cartTotalItems.textContent = totalItems;
+        checkoutButton.disabled = totalItems === 0;
+        clearCartButton.disabled = totalItems === 0;
+
+        if (totalItems === 0) {
+            cartItemsList.innerHTML = '<p class="text-center text-gray-500 italic">Carrinho vazio.</p>';
+        } else {
+            const listItems = PRODUCTS.map(p => {
+                const qty = quantities[p.id] || 0;
+                if (qty > 0) {
+                    const productTotal = qty * p.value;
+                    return `
+                        <div class="flex justify-between items-center text-gray-700 font-semibold border-b border-gray-100 last:border-b-0 py-1">
+                            <span>${p.icon} ${p.name} x${qty} (${formatCurrency(p.value)}/un)</span>
+                            <span class="text-pink-600 font-extrabold">${formatCurrency(productTotal)}</span>
+                        </div>
+                    `;
+                }
+                return '';
+            }).join('');
+            cartItemsList.innerHTML = listItems;
+        }
+        
+        // Sempre re-renderiza os botões de ação para refletir o estoque restante e o estado de 'maxed'
+        renderActionButtons();
+    };
+
+    // Lê do objeto currentCart e calcula o total
+    const getCartQuantities = () => {
+        let totalItems = 0;
+        let totalRevenue = 0;
+        let totalCommission = 0;
+        let quantities = {};
+        
+        for (const id in currentCart) {
+            const qty = currentCart[id];
+            const product = PRODUCTS.find(p => p.id === id);
+            
+            if (qty > 0 && product) {
+                quantities[id] = qty;
+                totalItems += qty;
+                totalRevenue += qty * product.value;
+                totalCommission += qty * product.commission;
+            }
+        }
+        return { quantities, totalItems, totalRevenue: parseFloat(totalRevenue.toFixed(2)), totalCommission: parseFloat(totalCommission.toFixed(2)) };
+    };
+
+
+    // Renderiza os inputs para o modal de Estoque Inicial
+    const renderInitialStockInputs = () => {
+        initialStockInputs.innerHTML = PRODUCTS.map(p => `
+            <div class="flex items-center space-x-3">
+                <span class="text-xl w-6">${p.icon}</span>
+                <label for="initial-qty-${p.id}" class="flex-grow text-sm font-medium text-gray-700">${p.name}</label>
+                <input type="number" id="initial-qty-${p.id}" 
+                        value="${appData.stock[p.id] || 0}" min="0" 
+                        class="w-24 p-2 border border-gray-300 rounded-lg text-center font-bold">
+            </div>
+        `).join('');
+    };
+
+    window.saveInitialStock = async () => {
+        hideModal('setInitialStockModal');
+        let newStock = {};
+        let stockChanged = false;
+
+        PRODUCTS.forEach(p => {
+            const input = document.getElementById(`initial-qty-${p.id}`);
+            const newQty = parseInt(input.value) || 0;
+            newStock[p.id] = newQty;
+            if (newQty !== (appData.stock[p.id] || 0)) {
+                stockChanged = true;
+            }
+        });
+
+        if (!stockChanged) {
+            showMessage("Nenhuma mudança no estoque.", 'success');
+            return;
+        }
+
+        // Atualiza a appData localmente
+        appData.stock = newStock;
+        
+        if (IS_LOCAL_TEST_MODE) {
+            updateUI();
+            showMessage("Estoque atualizado em memória (Modo de Teste)!", 'error');
+            return;
+        }
+
+        const docRef = getCurrentDayDocRef();
+        if (!docRef) { showMessage("Erro: Autenticação pendente ou falhou.", 'error'); return; }
+
+        try {
+            await updateDoc(docRef, { stock: newStock });
+            showMessage("Estoque atualizado no Firebase!", 'success');
+        } catch (e) {
+            console.error("Erro ao salvar estoque:", e);
+            showMessage("Erro ao salvar o estoque.", 'error');
+        }
+    };
+
+
+    // Usa getCartQuantities e currentCart
+    window.showCheckoutModal = () => {
+        const { totalRevenue, totalItems } = getCartQuantities();
+        if (totalItems === 0) {
+            showMessage("O carrinho está vazio.", 'error');
+            checkoutButton.disabled = true;
+            return;
+        }
+        
+        checkoutModalTotal.textContent = formatCurrency(totalRevenue);
+        showModal('checkoutModal');
+    };
+
+    window.finalizeSale = async (type) => {
+        hideModal('checkoutModal');
+        
+        const { quantities, totalItems, totalRevenue, totalCommission } = getCartQuantities();
+        if (totalItems === 0) return;
+
+        let stockUpdates = { ...appData.stock };
+        let soldItemsDetails = [];
+        let insufficientStock = false;
+
+        // 1. Validação e Cálculo
+        PRODUCTS.forEach(p => {
+            const qty = quantities[p.id] || 0;
+            if (qty > 0) {
+                const availableStock = appData.stock[p.id] || 0;
+                
+                if (qty > availableStock) {
+                    insufficientStock = true;
+                }
+                
+                stockUpdates[p.id] = availableStock - qty;
+
+                soldItemsDetails.push({
+                    name: p.name,
+                    id: p.id,
+                    quantity: qty,
+                    valuePerUnit: p.value,
+                    commissionPerUnit: p.commission,
+                });
+            }
+        });
+
+        if (insufficientStock) {
+            // Se houve alteração no estoque desde a abertura do modal
+            showMessage("Estoque insuficiente para completar a venda. O carrinho foi limpo.", 'error');
+            clearCart();
+            return;
+        }
+        
+        // NOVO: Cálculo do valor para Depósito (Líquido)
+        const totalDepositValue = parseFloat((totalRevenue - totalCommission).toFixed(2));
+
+        // 2. Preparação dos Dados para Firestore
+        const field = type === 'dinheiro' ? 'vendasDinheiro' : 'vendasPix';
+        
+        const newTotalVendasField = parseFloat((appData[field] + totalRevenue).toFixed(2));
+        const newTotalCommission = parseFloat((appData.totalCommissionAccrued + totalCommission).toFixed(2));
+
+        const newSale = {
+            type: type,
+            value: totalRevenue,
+            commission: totalCommission,
+            depositValue: totalDepositValue, 
+            timestamp: Date.now(), 
+            items: soldItemsDetails,
+        };
+        const updatedSalesHistory = [...(appData.salesHistory || []), newSale];
+        
+        const updates = {
+            [field]: newTotalVendasField,
+            totalCommissionAccrued: newTotalCommission,
+            salesHistory: updatedSalesHistory,
+            stock: stockUpdates,
+        };
+
+        // 3. Lógica de Atualização (Local ou Firebase)
+        if (IS_LOCAL_TEST_MODE) {
+            // Atualiza localmente no modo de teste
+            appData = { ...appData, ...updates };
+            showMessage(`Venda de ${formatCurrency(totalRevenue)} (${type}) registrada localmente.`, 'success');
+            clearCart();
+            updateUI();
+            return;
+        }
+
+        // Caso Firebase
+        const docRef = getCurrentDayDocRef();
+        if (!docRef) { showMessage("Erro: Autenticação pendente ou falhou.", 'error'); return; }
+
+        try {
+            await updateDoc(docRef, updates);
+            showMessage(`Venda de ${formatCurrency(totalRevenue)} (${type}) registrada no Firebase!`, 'success');
+            clearCart(); // O updateUI será chamado pelo listener do Firebase
+        } catch (e) {
+            console.error("Erro ao registrar venda:", e);
+            showMessage("Erro ao registrar venda no Firebase.", 'error');
+        }
+    };
+
+    // --- Funções de Persistência e Documento ---
+
+    const getCurrentDayDocRef = () => {
+        if (!db || !userId) return null;
+        // Caminho: /artifacts/{appId}/users/{userId}/sales_sessions/{YYYY-MM-DD}
+        return doc(db, 'artifacts', appId, 'users', userId, COLLECTION_NAME, getTodayId());
+    };
+
+    const getArchiveCollectionRef = () => {
+        if (!db || !userId) return null;
+        // Caminho: /artifacts/{appId}/users/{userId}/sales_archives
+        return collection(db, 'artifacts', appId, 'users', userId, ARCHIVE_COLLECTION_NAME);
+    };
+
+    // Função principal de atualização da UI
+    const updateUI = (data = appData) => {
+        // 1. Cálculo de Caixa e Display Principal
+        const troco = data.trocoInicial || 0;
+        const vendasDinheiro = data.vendasDinheiro || 0;
+        const totalCommission = data.totalCommissionAccrued || 0;
+        const vendasPix = data.vendasPix || 0;
+        
+        const caixaAtual = parseFloat((troco + vendasDinheiro).toFixed(2));
+        const totalRevenue = parseFloat((vendasDinheiro + vendasPix).toFixed(2));
+        // O valor líquido total (Receita - Comissão) é o que deve ser depositado (ou o que sobrou no total)
+        const depositoLiquido = parseFloat((totalRevenue - totalCommission).toFixed(2));
+
+        caixaAtualValue.textContent = formatCurrency(caixaAtual);
+        vendasPixValue.textContent = formatCurrency(vendasPix);
+        comissaoValue.textContent = formatCurrency(totalCommission);
+        depositoValue.textContent = formatCurrency(depositoLiquido);
+        
+        trocoInicialDetail.textContent = formatCurrency(troco);
+        vendasDinheiroDetail.textContent = formatCurrency(vendasDinheiro);
+        trocoInicialSetting.value = troco.toFixed(2);
+        
+        // 2. Estoque e Botões
+        let stockHtml = '';
+        let stockAvailable = false;
+
+        PRODUCTS.forEach(p => {
+            const stockQty = data.stock[p.id] || 0;
+            const color = p.color.replace('border-', 'text-');
+            if (stockQty > 0) stockAvailable = true;
+            
+            stockHtml += `
+                <div class="p-3 rounded-lg bg-white border-l-4 ${p.color} shadow-sm flex justify-between items-center">
+                    <span class="text-xl mr-2">${p.icon}</span>
+                    <span class="font-medium text-gray-700 flex-grow">${p.name}</span>
+                    <span class="text-xl font-bold ${color}">${stockQty}</span>
+                </div>
+            `;
+        });
+        inventoryStockContainer.innerHTML = stockAvailable ? stockHtml : '<p class="col-span-2 text-center text-gray-500 italic">Estoque zerado.</p>';
+        
+        renderActionButtons(); // Atualiza botões do carrinho
+        updateCartUI(); // Revalida o carrinho (em caso de update de estoque)
+
+        // 3. Resumo de Vendas do Dia (por Produto)
+        const productSalesSummary = data.salesHistory.flatMap(sale => sale.items)
+            .reduce((acc, item) => {
+                const existing = acc[item.id] || { quantity: 0, revenue: 0, commission: 0 };
+                existing.quantity += item.quantity;
+                existing.revenue += item.quantity * item.valuePerUnit;
+                existing.commission += item.quantity * item.commissionPerUnit;
+                acc[item.id] = existing;
+                return acc;
+            }, {});
+
+        if (Object.keys(productSalesSummary).length === 0) {
+            currentDayProductSummary.innerHTML = '<p class="text-center text-gray-500 italic">Nenhuma venda registrada hoje.</p>';
+        } else {
+            const summaryHtml = PRODUCTS.filter(p => productSalesSummary[p.id]).map(p => {
+                const summary = productSalesSummary[p.id];
+                return `
+                    <div class="flex justify-between items-center p-2 rounded-md bg-white shadow-sm border-l-4 ${p.color}">
+                        <span class="font-semibold text-gray-700">${p.icon} ${p.name}</span>
+                        <div class="text-right text-sm">
+                            <span class="font-bold text-pink-600 block">${formatCurrency(summary.revenue)}</span>
+                            <span class="text-xs text-gray-500">${summary.quantity} Unid. | Comissão: ${formatCurrency(summary.commission)}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            currentDayProductSummary.innerHTML = summaryHtml;
+        }
+
+        // 4. Detalhe das Transações (Modal)
+        renderDetailedTransactions(data.salesHistory);
+    };
+
+    // Renderiza o histórico detalhado de transações (para o Modal)
+    const renderDetailedTransactions = (history) => {
+        if (history && history.length > 0) {
+            const transactionsHtml = history.slice().reverse().map((sale, index) => {
+                const time = formatTimestamp(sale.timestamp);
+                const itemsList = sale.items.map(item => `${item.quantity}x ${item.name}`).join('; ');
+                
+                return `
+                    <div class="p-3 bg-gray-50 rounded-lg border-l-4 ${sale.type === 'dinheiro' ? 'border-green-500' : 'border-blue-500'} shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-xs text-gray-500">${time}</span>
+                            <span class="px-2 py-0.5 text-xs font-semibold rounded-full text-white ${sale.type === 'dinheiro' ? 'bg-green-500' : 'bg-blue-500'}">${sale.type.toUpperCase()}</span>
+                        </div>
+                        <p class="text-lg font-bold text-gray-800 mt-1">${formatCurrency(sale.value)}</p>
+                        <p class="text-sm text-gray-600 truncate">Itens: ${itemsList}</p>
+                        <p class="text-xs text-red-500">Comissão: ${formatCurrency(sale.commission)}</p>
+                    </div>
+                `;
+            }).join('');
+            transactionsList.innerHTML = transactionsHtml;
+        } else {
+            transactionsList.innerHTML = '<p class="text-center text-gray-500 italic">Nenhuma transação registrada hoje.</p>';
+        }
+    };
+
+    window.showDetailedHistoryModal = () => {
+        // A função renderDetailedTransactions é chamada no updateUI, então basta mostrar o modal.
+        showModal('detailedHistoryModal');
+    };
+
+    // --- Funções de Gerenciamento de Caixa e Dia ---
+
+    window.salvarTrocoInicial = async () => {
+        const newTroco = parseFloat(trocoInicialSetting.value);
+        if (isNaN(newTroco) || newTroco < 0) {
+            showMessage("Valor do troco inválido.", 'error');
+            return;
+        }
+
+        if (newTroco === appData.trocoInicial) {
+            showMessage("O troco inicial não foi alterado.", 'success');
+            return;
+        }
+
+        appData.trocoInicial = newTroco;
+
+        if (IS_LOCAL_TEST_MODE) {
+            updateUI();
+            showMessage("Troco inicial salvo localmente.", 'success');
+            return;
+        }
+        
+        const docRef = getCurrentDayDocRef();
+        if (!docRef) { showMessage("Erro: Autenticação pendente ou falhou.", 'error'); return; }
+
+        try {
+            await updateDoc(docRef, { trocoInicial: newTroco });
+            showMessage("Troco inicial salvo no Firebase!", 'success');
+        } catch (e) {
+            console.error("Erro ao salvar troco inicial:", e);
+            showMessage("Erro ao salvar o troco inicial.", 'error');
+        }
+    };
+
+    window.closeDayAndArchive = async () => {
+        hideModal('confirmArchiveModal');
+        
+        if (IS_LOCAL_TEST_MODE) {
+            showMessage("Fechamento de dia desabilitado no Modo de Teste Local.", 'error');
+            return;
+        }
+        
+        const docRef = getCurrentDayDocRef();
+        const archiveRef = getArchiveCollectionRef();
+        if (!docRef || !archiveRef) { showMessage("Erro: Autenticação pendente ou falhou.", 'error'); return; }
+
+        const archiveData = {
+            ...appData,
+            dateId: getTodayId(),
+            closedBy: userId,
+            closingTimestamp: Date.now(),
+            totalRevenue: parseFloat((appData.vendasDinheiro + appData.vendasPix).toFixed(2)),
+            netDeposit: parseFloat(((appData.vendasDinheiro + appData.vendasPix) - appData.totalCommissionAccrued).toFixed(2)),
+        };
+
+        // 1. Arquiva o dia atual na coleção de arquivos
+        try {
+            // Usamos setDoc com o ID do dia atual para manter a unicidade no histórico
+            const newArchiveDocRef = doc(archiveRef, getTodayId());
+            await setDoc(newArchiveDocRef, archiveData);
+            
+            showMessage("Dia arquivado com sucesso!", 'success');
+
+            // 2. Reseta os dados da sessão atual (mantendo o Troco Inicial)
+            const trocoToKeep = appData.trocoInicial;
+            const resetData = {
+                ...INITIAL_DAY_DATA,
+                trocoInicial: trocoToKeep, // Mantém o troco inicial
+                stock: appData.stock, // Mantém o último estoque (para evitar que o vendedor inicie com o estoque padrão após o fechamento)
+            };
+            
+            // Usamos setDoc para sobrescrever o documento do dia atual com os dados de reset
+            await setDoc(docRef, resetData);
+            
+            showMessage("Sessão atual resetada com sucesso!", 'success');
+        } catch (e) {
+            console.error("Erro ao arquivar e resetar o dia:", e);
+            showMessage("Erro no arquivamento. Tente novamente.", 'error');
+        }
+    };
+
+    window.fetchAndShowArchives = async () => {
+        showModal('historyModal');
+        archivesList.innerHTML = '<p class="text-center text-gray-500">Buscando histórico...</p>';
+
+        if (IS_LOCAL_TEST_MODE) {
+            archivesList.innerHTML = '<p class="text-center text-red-500 font-semibold">O histórico arquivado não está disponível no Modo de Teste Local.</p>';
+            return;
+        }
+
+        const archiveRef = getArchiveCollectionRef();
+        if (!archiveRef) { showMessage("Erro: Autenticação pendente ou falhou.", 'error'); return; }
+
+        try {
+            // Usamos getDocs sem onSnapshot pois é um histórico estático
+            const q = query(archiveRef); 
+            const querySnapshot = await getDocs(q);
+            const archives = [];
+            querySnapshot.forEach(doc => {
+                archives.push(doc.data());
+            });
+
+            if (archives.length === 0) {
+                archivesList.innerHTML = '<p class="text-center text-gray-500">Nenhum histórico arquivado encontrado.</p>';
+                return;
+            }
+
+            // Ordenar por data de fechamento (mais recente primeiro)
+            archives.sort((a, b) => b.closingTimestamp - a.closingTimestamp);
+
+            const archiveHtml = archives.map(archive => `
+                <div class="p-4 bg-white rounded-xl shadow-lg border-l-4 border-indigo-500">
+                    <h4 class="text-xl font-bold text-indigo-700">Fechamento: ${archive.dateId}</h4>
+                    <p class="text-sm text-gray-500 mb-2">Arquivado em: ${new Date(archive.closingTimestamp).toLocaleDateString('pt-BR')} ${formatTimestamp(archive.closingTimestamp)}</p>
+                    <div class="grid grid-cols-2 gap-2 text-sm mt-3">
+                        <p><strong>Receita Total:</strong> <span class="text-pink-600 font-bold">${formatCurrency(archive.totalRevenue)}</span></p>
+                        <p><strong>Depósito Líquido:</strong> <span class="text-green-600 font-bold">${formatCurrency(archive.netDeposit)}</span></p>
+                        <p><strong>Comissão Total:</strong> <span class="text-red-600 font-bold">${formatCurrency(archive.totalCommissionAccrued)}</span></p>
+                        <p><strong>Troco Inicial:</strong> ${formatCurrency(archive.trocoInicial)}</p>
+                    </div>
+                </div>
+            `).join('');
+            
+            archivesList.innerHTML = archiveHtml;
+
+        } catch (e) {
+            console.error("Erro ao buscar arquivos:", e);
+            archivesList.innerHTML = `<p class="text-center text-red-500">Erro ao carregar histórico: ${e.message}</p>`;
+        }
+    };
+
+
+    // --- Inicialização do Firebase e Listener ---
+
+    const listenForData = () => {
+        if (IS_LOCAL_TEST_MODE) {
+            showMessage("Modo de Teste Local Ativo. Dados não serão salvos.", 'error');
+            updateUI(appData); // Renderiza os dados iniciais do modo de teste
+            return;
+        }
+        
+        const docRef = getCurrentDayDocRef();
+        if (!docRef) return; // Se a autenticação falhou ou não terminou
+
+        // Listener em tempo real
+        onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                // Documento existe, carrega os dados
+                appData = { ...INITIAL_DAY_DATA, ...docSnap.data() }; 
+                console.log("Dados do Firebase carregados:", appData);
+            } else {
+                // Documento não existe, cria um novo para o dia
+                console.log("Documento do dia não encontrado. Criando um novo...");
+                // Usa setDoc para criar o documento com os dados iniciais
+                setDoc(docRef, INITIAL_DAY_DATA)
+                    .then(() => console.log("Documento do dia criado com sucesso."))
+                    .catch(e => console.error("Erro ao criar documento do dia:", e));
+                
+                appData = INITIAL_DAY_DATA; // Atualiza o estado local temporariamente
+            }
+            updateUI(appData);
+        }, (error) => {
+            console.error("Erro no listener do Firestore:", error);
+            showMessage(`Erro de conexão com o Firebase: ${error.message}`, 'error');
+        });
+    };
+
+    const initApp = async () => {
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            // 1. Autenticação
+            if (authToken) {
+                await signInWithCustomToken(auth, authToken);
+            } else {
+                await signInAnonymously(auth);
+            }
+
+            // 2. Listener de Estado de Autenticação (obrigatório para pegar o userId)
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userId = user.uid;
+                    isAuthReady = true;
+                    userIdDisplay.textContent = userId;
+                    listenForData();
+                } else {
+                    userId = crypto.randomUUID(); // Fallback para ID local se falhar, mas o Firestore não funcionará sem autenticação.
+                    userIdDisplay.textContent = `Anon-ID: ${userId}`;
+                    showMessage("Aviso: Falha na autenticação do Firebase. Operação não persistente.", 'error');
+                }
+            });
+
+        } catch (error) {
+            console.error("Erro de inicialização ou autenticação do Firebase:", error);
+            showMessage("Erro crítico no Firebase. Verifique a chave de API.", 'error');
+        }
+    };
+
+    // Inicia a aplicação
+    initApp();
+
+    // Re-renderiza botões do carrinho na carga inicial do DOM
+    document.addEventListener('DOMContentLoaded', () => {
+        renderActionButtons();
+    });
+
+</script>
+</body>
+</html>
